@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conversor Local Base64 com Compressão</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background-color: #f4f4f9;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        .container {
+            background: #fff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        h2 { margin-top: 0; color: #2c3e50; }
+        .upload-area {
+            border: 2px dashed #3498db;
+            border-radius: 8px;
+            padding: 40px 20px;
+            text-align: center;
+            background: #fdfdfe;
+            margin-bottom: 20px;
+            transition: background 0.3s;
+        }
+        .upload-area:hover { background: #f1f8ff; }
+        input[type="file"] { display: none; }
+        .btn {
+            background: #3498db;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+        .btn:hover { background: #2980b9; }
+        textarea {
+            width: 100%;
+            height: 150px;
+            padding: 15px;
+            margin-top: 20px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 0.85rem;
+            resize: vertical;
+            box-sizing: border-box;
+            background-color: #fafafa;
+        }
+        .preview-container {
+            margin-top: 20px;
+            text-align: center;
+            display: none;
+        }
+        .preview-container img {
+            max-width: 100%;
+            max-height: 300px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .info {
+            font-size: 0.9rem;
+            color: #666;
+            margin-top: 10px;
+            line-height: 1.5;
+        }
+        .stats {
+            color: #27ae60;
+            font-weight: bold;
+        }
+        .copy-btn {
+            background: #2ecc71;
+            margin-top: 10px;
+            display: none;
+            width: 100%;
+        }
+        .copy-btn:hover { background: #27ae60; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h2>Conversor Offline de Imagem para Base64</h2>
+        <p>A imagem será automaticamente comprimida (máx 800px / 70% de qualidade JPEG) localmente.</p>
+
+        <div class="upload-area">
+            <label for="file-input" class="btn">Selecionar Imagem</label>
+            <input type="file" id="file-input" accept="image/png, image/jpeg, image/webp">
+            <div class="info" id="file-info">Formatos suportados: JPG, PNG, WEBP.</div>
+        </div>
+
+        <div class="preview-container" id="preview-container">
+            <img id="image-preview" src="" alt="Pré-visualização da imagem comprimida">
+            <div class="info" id="compression-stats"></div>
+        </div>
+
+        <textarea id="base64-output" placeholder="O código Base64 comprimido aparecerá aqui..." readonly></textarea>
+        
+        <button class="btn copy-btn" id="copy-btn">Copiar Código Base64</button>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById('file-input');
+        const base64Output = document.getElementById('base64-output');
+        const imagePreview = document.getElementById('image-preview');
+        const previewContainer = document.getElementById('preview-container');
+        const fileInfo = document.getElementById('file-info');
+        const compressionStats = document.getElementById('compression-stats');
+        const copyBtn = document.getElementById('copy-btn');
+
+        // Configurações de compressão
+        const MAX_DIMENSION = 800; // Largura ou altura máxima em pixels
+        const JPEG_QUALITY = 0.7;  // 70% de qualidade visual
+
+        fileInput.addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const originalSizeKB = (file.size / 1024).toFixed(2);
+            fileInfo.innerHTML = `Arquivo original: <strong>${file.name}</strong> (${originalSizeKB} KB)`;
+
+            const reader = new FileReader();
+
+            reader.onload = function(e) {
+                const img = new Image();
+                img.src = e.target.result;
+
+                img.onload = function() {
+                    // Cálculo da nova dimensão mantendo o aspect ratio
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > height) {
+                        if (width > MAX_DIMENSION) {
+                            height = Math.round(height * (MAX_DIMENSION / width));
+                            width = MAX_DIMENSION;
+                        }
+                    } else {
+                        if (height > MAX_DIMENSION) {
+                            width = Math.round(width * (MAX_DIMENSION / height));
+                            height = MAX_DIMENSION;
+                        }
+                    }
+
+                    const canvas = document.createElement('canvas');
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+
+                    // Preenche o fundo com branco (previne fundo preto caso seja um PNG transparente)
+                    ctx.fillStyle = '#FFFFFF';
+                    ctx.fillRect(0, 0, width, height);
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    // Exporta para Base64 forçando formato JPEG com a compressão definida
+                    const compressedBase64 = canvas.toDataURL('image/jpeg', JPEG_QUALITY);
+
+                    // Cálculo aproximado do novo tamanho em KB baseado no comprimento da string Base64
+                    const base64Length = compressedBase64.length - 'data:image/jpeg;base64,'.length;
+                    const newSizeKB = ((base64Length * 3 / 4) / 1024).toFixed(2);
+
+                    base64Output.value = compressedBase64;
+                    imagePreview.src = compressedBase64;
+                    
+                    compressionStats.innerHTML = `Tamanho final estimado: <span class="stats">${newSizeKB} KB</span> (Redução de ${Math.round((1 - newSizeKB/originalSizeKB)*100)}%) | Resolução: ${width}x${height}px`;
+                    
+                    previewContainer.style.display = 'block';
+                    copyBtn.style.display = 'block';
+                };
+            };
+
+            reader.readAsDataURL(file);
+        });
+
+        copyBtn.addEventListener('click', function() {
+            base64Output.select();
+            document.execCommand('copy');
+            
+            const originalText = this.textContent;
+            this.textContent = 'Copiado para a área de transferência!';
+            this.style.background = '#27ae60';
+            
+            setTimeout(() => {
+                this.textContent = originalText;
+                this.style.background = '#2ecc71';
+            }, 2000);
+        });
+    </script>
+
+</body>
+</html>
